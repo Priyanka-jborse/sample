@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cbs-kafka-stream
+  namespace: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cbskafka-stream
+  template:
+    metadata:
+      labels:
+        app: cbskafka-stream
+    spec:
+      serviceAccountName: default
+      hostAliases:
+      - ip: "52.5.65.18"
+        hostnames:
+        - "modus.clouzer.com"
+      
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 1
+            preference:
+              matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - groot.mcloud.com
+
+      containers:
+      - name: cbs-kafka-stream
+        image: groot.mcloud.com:5000/micro:CBS_CLZ_COM-2024-09-08-27
+#        resources:
+#          requests:
+#            memory: "1024Mi"
+#            cpu: "100m"
+#          limits:
+#            memory: "2048Mi"
+#            cpu: "200m"
+
+        ports:
+        - containerPort: 8081
+        command: ["/bin/sh","-c"]
+        args:
+        - /opt/run.sh; cd /opt/spark/jars; java -Dclouds.hive.mqtt.publisher.client.id="BACKEND-DEV-CBS_CLZ_COM-PUBLISHER-v1.0.2" -Dclouds.hive.mqtt.publisher.qos=1 -Dclouds.hive.mqtt.dynamic.publisher.clientid.enabled=false -Dclouds.hive.mqtt.dynamic.subscriber.clientid.enabled=false -Dclouds.hive.mqtt.statefeul.k8.pod=false -Dclouds.hive.mqtt.subscriber.qos=1 -Dcloud.kafka.namespace.id=DEV_123 -Dclouds.service.types=STREAM  -DEnableIgniteClientNode=false -javaagent:/opt/spark/jars/jmx_prometheus_javaagent-0.16.2-JMX.jar=8082:/opt/spark/jars/jmx_exporter/config.yml -Dclouds.config.path=/usr/local/EIPS2_CONF -Dlog4j.configurationFile=/usr/local/EIPS2_CONF/log4j-2.xml -Dclouds.ignite.serviceName=ignite -Dclouds.ignite.nameSpace=dev -Dclouds.caas.context.switch=true -Dclouds.hive.mqtt.broadcast.mode=enable -Dclouds.batch.process.mode=enabled -Dclouds.batch.size=50 -Dclouds.caas.context.switch=true -Dcloud.user.fs.path=hdfs://10.13.10.28:8020/EIPS2_USERS/ -Dcloud.user.fs.importexport.path=hdfs://10.13.10.28:8020/EIPS2_USERS/,hdfs://widow.mcloud.com:8020/EIPS2_USERS/,hdfs://groot.mcloud.com:8020/EIPS2_USERS/,hdfs://groot.mcloud.com:8020/EIPS2_USERS/ -Dcloud.kafka.stream.state.dir=hdfs://10.13.10.28:8020/SPARK/sparkCheckPoint/KAFKA-STREAM-STATE/ -Dcloud.kafka.stream.id=dev-cbs-clz-com-v3.0.16 -Dcloud.kafka.stream.num.stream.threads=3 -Dcloud.vault.host.name=https://dev.clouzer.com -Dcloud.kafka.topic.partitions=9 -Dclouds.ignite.masterurl=https://captain.mcloud.com:6443 -Dclouds.tiger.mode=STREAM -Dcom.clouds.IgniteThinAddress=captain.mcloud.com:30310 -XX:ErrorFile=/usr/local/share/cbs_dump.log -cp *:cloud.jar com.clouds.core.main.ServiceExecutor /usr/local/EIPS2_CONF SKIP_SCRIPT
+        env:
+        - name: HBASE_MASTER
+          value: "10.13.10.28:16000"
+        - name: HBASE_ZOOKEEPER_QUORUM
+          value: "10.13.10.16,10.13.10.28,10.13.10.46"
+        - name: PHEONIX_DRIVER
+          value: "jdbc:phoenix:10.13.10.28:2181/hbase"
+        - name: GRAYLOG_IP
+          value: "dev.clouzer.com"
+        - name: GRAYLOG_PORT
+          value: "5002"
+#        - name: CLOUD_IGNITE_MASTERURL
+#          value: "https://captain.mcloud.com:6443"
+
+        volumeMounts:
+        - mountPath: "/usr/local/share/"
+          name: dump-pv-volume
+      volumes:
+      - name: dump-pv-volume
+        persistentVolumeClaim:
+          claimName: dump-pv-claim
+
